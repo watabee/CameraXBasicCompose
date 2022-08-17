@@ -1,0 +1,64 @@
+plugins {
+    id "cameraxbasiccompose.android.application"
+    id "cameraxbasiccompose.android.application.compose"
+    id 'kotlin-kapt'
+    id 'dagger.hilt.android.plugin'
+}
+
+android {
+    defaultConfig {
+        applicationId "com.github.watabee.cameraxbasiccompose"
+        versionCode 1
+        versionName "1.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        debug {
+            storeFile rootProject.file("config/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug // TODO
+
+            shrinkResources true
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    packagingOptions {
+        excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+    }
+}
+
+dependencies {
+    implementation libs.kotlinx.coroutines.android
+
+    implementation libs.androidx.appcompat
+    implementation libs.androidx.activity.compose
+    implementation libs.androidx.core.ktx
+
+    implementation libs.androidx.lifecycle.viewModelCompose
+
+    // Compose
+    implementation libs.androidx.compose.runtime
+    implementation libs.androidx.compose.ui.tooling
+    implementation libs.androidx.compose.ui.tooling.preview
+    implementation libs.androidx.compose.material
+    implementation libs.androidx.compose.runtime.livedata
+
+    implementation libs.hilt.android
+    kapt libs.hilt.compiler
+
+    implementation libs.timber
+}
