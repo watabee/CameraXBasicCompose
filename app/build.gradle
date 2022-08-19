@@ -1,8 +1,6 @@
 plugins {
     id "cameraxbasiccompose.android.application"
     id "cameraxbasiccompose.android.application.compose"
-    id 'kotlin-kapt'
-    id 'dagger.hilt.android.plugin'
 }
 
 android {
@@ -43,10 +41,12 @@ android {
 
 dependencies {
     implementation libs.kotlinx.coroutines.android
+    implementation libs.kotlinx.coroutines.guava
 
     implementation libs.androidx.appcompat
     implementation libs.androidx.activity.compose
     implementation libs.androidx.core.ktx
+    implementation libs.androidx.window
 
     implementation libs.androidx.lifecycle.viewModelCompose
 
@@ -57,8 +57,18 @@ dependencies {
     implementation libs.androidx.compose.material
     implementation libs.androidx.compose.runtime.livedata
 
-    implementation libs.hilt.android
-    kapt libs.hilt.compiler
+    implementation libs.androidx.navigation.compose
+
+    implementation libs.coil.compose
+
+    implementation libs.accompanist.pager
+    implementation libs.accompanist.permissions
+
+    // CameraX
+    implementation libs.androidx.camerax.core
+    implementation libs.androidx.camerax.camera2
+    implementation libs.androidx.camerax.lifecycle
+    implementation libs.androidx.camerax.view
 
     implementation libs.timber
 }
