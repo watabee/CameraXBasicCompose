@@ -2,6 +2,7 @@ package com.github.watabee.cameraxbasiccompose
 
 import android.content.Context
 import android.hardware.display.DisplayManager
+import android.net.Uri
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraInfoUnavailableException
@@ -40,9 +41,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.abs
@@ -50,16 +48,22 @@ import kotlin.math.max
 import kotlin.math.min
 
 @Composable
-fun rememberCameraViewState(): CameraViewState {
+fun rememberCameraViewState(photoFileController: PhotoFileController): CameraViewState {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
-    return remember(context, coroutineScope) {
-        CameraViewState(context, coroutineScope)
+    return remember(context, lifecycleOwner, photoFileController) {
+        CameraViewState(context, lifecycleOwner, photoFileController, coroutineScope)
     }
 }
 
 @Stable
-class CameraViewState(private val context: Context, coroutineScope: CoroutineScope) : RememberObserver {
+class CameraViewState(
+    private val context: Context,
+    private val lifecycleOwner: LifecycleOwner,
+    private val photoFileController: PhotoFileController,
+    coroutineScope: CoroutineScope
+) : RememberObserver {
     private var processCameraProvider: ProcessCameraProvider? by mutableStateOf(null)
 
     var lensFacing: Int? by mutableStateOf(null)
@@ -118,7 +122,7 @@ class CameraViewState(private val context: Context, coroutineScope: CoroutineSco
         }
     }
 
-    suspend fun bindCameraUseCases(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
+    suspend fun bindCameraUseCases(previewView: PreviewView) {
         Timber.w("*** bindCameraUseCases")
         val processCameraProvider: ProcessCameraProvider = snapshotFlow { processCameraProvider }.first { it != null }!!
         val lensFacing = lensFacing ?: throw IllegalStateException()
@@ -156,25 +160,22 @@ class CameraViewState(private val context: Context, coroutineScope: CoroutineSco
 
     fun takePicture() {
         val cameraExecutor = cameraExecutor ?: throw IllegalStateException()
+        val photoFile = photoFileController.createPhotoFile()
 
         val metadata = ImageCapture.Metadata()
             .apply {
                 isReversedHorizontal = lensFacing == CameraSelector.LENS_FACING_FRONT
             }
         val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(
-                File(
-                    context.filesDir,
-                    "${SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US).format(System.currentTimeMillis())}.JPG"
-                )
-            )
+            .Builder(photoFile)
             .setMetadata(metadata)
             .build()
 
         imageCapture?.takePicture(outputOptions, cameraExecutor, object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                val savedUri = outputFileResults.savedUri
+                val savedUri = outputFileResults.savedUri ?: Uri.fromFile(photoFile)
                 Timber.w("Photo capture succeeded: $savedUri")
+                photoFileController.onPhotoSaved(savedUri)
             }
 
             override fun onError(exception: ImageCaptureException) {
@@ -202,22 +203,101 @@ class CameraViewState(private val context: Context, coroutineScope: CoroutineSco
         cameraExecutor?.shutdown()
         cameraExecutor = null
     }
+
+    private fun observeCameraState(cameraInfo: CameraInfo, lifecycleOwner: LifecycleOwner) {
+        cameraInfo.cameraState.observe(lifecycleOwner) { cameraState ->
+            run {
+                when (cameraState.type) {
+                    CameraState.Type.PENDING_OPEN -> {
+                        // Ask the user to close other camera apps
+                        Timber.w("CameraState: Pending Open")
+                    }
+                    CameraState.Type.OPENING -> {
+                        // Show the Camera UI
+                        Timber.w("CameraState: Opening")
+                    }
+                    CameraState.Type.OPEN -> {
+                        // Setup Camera resources and begin processing
+                        Timber.w("CameraState: Open")
+                    }
+                    CameraState.Type.CLOSING -> {
+                        // Close camera UI
+                        Timber.w("CameraState: Closing")
+                    }
+                    CameraState.Type.CLOSED -> {
+                        // Free camera resources
+                        Timber.w("CameraState: Closed")
+                    }
+                }
+            }
+
+            cameraState.error?.let { error ->
+                when (error.code) {
+                    // Open errors
+                    CameraState.ERROR_STREAM_CONFIG -> {
+                        // Make sure to setup the use cases properly
+                        Timber.e("Stream config error")
+                    }
+                    // Opening errors
+                    CameraState.ERROR_CAMERA_IN_USE -> {
+                        // Close the camera or ask user to close another camera app that's using the
+                        // camera
+                        Timber.e("Camera in use")
+                    }
+                    CameraState.ERROR_MAX_CAMERAS_IN_USE -> {
+                        // Close another open camera in the app, or ask the user to close another
+                        // camera app that's using the camera
+                        Timber.e("Max cameras in use")
+                    }
+                    CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> {
+                        Timber.e("Other recoverable error")
+                    }
+                    // Closing errors
+                    CameraState.ERROR_CAMERA_DISABLED -> {
+                        // Ask the user to enable the device's cameras
+                        Timber.e("Camera disabled")
+                    }
+                    CameraState.ERROR_CAMERA_FATAL_ERROR -> {
+                        // Ask the user to reboot the device to restore camera function
+                        Timber.e("Fatal error")
+                    }
+                    // Closed errors
+                    CameraState.ERROR_DO_NOT_DISTURB_MODE_ENABLED -> {
+                        // Ask the user to disable the "Do Not Disturb" mode, then reopen the camera
+                        Timber.e("Do not disturb mode enabled")
+                    }
+                }
+            }
+        }
+    }
+
+    companion object {
+        private fun aspectRatio(width: Int, height: Int): Int {
+            val previewRatio = max(width, height).toDouble() / min(width, height)
+            if (abs(previewRatio - RATIO_4_3_VALUE) <= abs(previewRatio - RATIO_16_9_VALUE)) {
+                return AspectRatio.RATIO_4_3
+            }
+            return AspectRatio.RATIO_16_9
+        }
+
+        private const val RATIO_4_3_VALUE = 4.0 / 3.0
+        private const val RATIO_16_9_VALUE = 16.0 / 9.0
+    }
 }
 
 @Composable
 fun CameraView(
     modifier: Modifier = Modifier,
-    cameraViewState: CameraViewState = rememberCameraViewState()
+    cameraViewState: CameraViewState
 ) {
     val context: Context = LocalContext.current
     val previewView = remember(context) { PreviewView(context) }
 
     if (cameraViewState.lensFacing != null) {
-        val lifecycleOwner = LocalLifecycleOwner.current
         val configuration = LocalConfiguration.current
 
-        LaunchedEffect(previewView, lifecycleOwner, configuration, cameraViewState.lensFacing) {
-            cameraViewState.bindCameraUseCases(lifecycleOwner, previewView)
+        LaunchedEffect(previewView, configuration, cameraViewState.lensFacing) {
+            cameraViewState.bindCameraUseCases(previewView)
         }
     }
 
@@ -253,84 +333,6 @@ private fun DisplayRotationChangedEffect(onDisplayRotationChanged: (rotation: In
         onDispose {
             Timber.w("onDispose: displayManager.unregisterDisplayListener")
             displayManager.unregisterDisplayListener(displayListener)
-        }
-    }
-}
-
-private fun aspectRatio(width: Int, height: Int): Int {
-    val previewRatio = max(width, height).toDouble() / min(width, height)
-    if (abs(previewRatio - RATIO_4_3_VALUE) <= abs(previewRatio - RATIO_16_9_VALUE)) {
-        return AspectRatio.RATIO_4_3
-    }
-    return AspectRatio.RATIO_16_9
-}
-
-private const val RATIO_4_3_VALUE = 4.0 / 3.0
-private const val RATIO_16_9_VALUE = 16.0 / 9.0
-
-private fun observeCameraState(cameraInfo: CameraInfo, lifecycleOwner: LifecycleOwner) {
-    cameraInfo.cameraState.observe(lifecycleOwner) { cameraState ->
-        run {
-            when (cameraState.type) {
-                CameraState.Type.PENDING_OPEN -> {
-                    // Ask the user to close other camera apps
-                    Timber.w("CameraState: Pending Open")
-                }
-                CameraState.Type.OPENING -> {
-                    // Show the Camera UI
-                    Timber.w("CameraState: Opening")
-                }
-                CameraState.Type.OPEN -> {
-                    // Setup Camera resources and begin processing
-                    Timber.w("CameraState: Open")
-                }
-                CameraState.Type.CLOSING -> {
-                    // Close camera UI
-                    Timber.w("CameraState: Closing")
-                }
-                CameraState.Type.CLOSED -> {
-                    // Free camera resources
-                    Timber.w("CameraState: Closed")
-                }
-            }
-        }
-
-        cameraState.error?.let { error ->
-            when (error.code) {
-                // Open errors
-                CameraState.ERROR_STREAM_CONFIG -> {
-                    // Make sure to setup the use cases properly
-                    Timber.e("Stream config error")
-                }
-                // Opening errors
-                CameraState.ERROR_CAMERA_IN_USE -> {
-                    // Close the camera or ask user to close another camera app that's using the
-                    // camera
-                    Timber.e("Camera in use")
-                }
-                CameraState.ERROR_MAX_CAMERAS_IN_USE -> {
-                    // Close another open camera in the app, or ask the user to close another
-                    // camera app that's using the camera
-                    Timber.e("Max cameras in use")
-                }
-                CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> {
-                    Timber.e("Other recoverable error")
-                }
-                // Closing errors
-                CameraState.ERROR_CAMERA_DISABLED -> {
-                    // Ask the user to enable the device's cameras
-                    Timber.e("Camera disabled")
-                }
-                CameraState.ERROR_CAMERA_FATAL_ERROR -> {
-                    // Ask the user to reboot the device to restore camera function
-                    Timber.e("Fatal error")
-                }
-                // Closed errors
-                CameraState.ERROR_DO_NOT_DISTURB_MODE_ENABLED -> {
-                    // Ask the user to disable the "Do Not Disturb" mode, then reopen the camera
-                    Timber.e("Do not disturb mode enabled")
-                }
-            }
         }
     }
 }
