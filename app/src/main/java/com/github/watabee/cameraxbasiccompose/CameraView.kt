@@ -16,7 +16,6 @@ import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -94,7 +93,7 @@ class CameraViewState(
             false
         }
     }
-    val canToggleLensFacing: Boolean by derivedStateOf {
+    val canSwitchCamera: Boolean by derivedStateOf {
         hasBackCamera && hasFrontCamera
     }
     var canTakePicture: Boolean by mutableStateOf(false)
@@ -111,10 +110,7 @@ class CameraViewState(
         }
     }
 
-    fun toggleLensFacing() {
-        if (!canToggleLensFacing) {
-            return
-        }
+    fun switchCamera() {
         lensFacing = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
             CameraSelector.LENS_FACING_BACK
         } else {

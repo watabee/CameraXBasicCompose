@@ -1,5 +1,6 @@
 package com.github.watabee.cameraxbasiccompose
 
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,67 +33,97 @@ fun CameraScreen() {
             cameraViewState = cameraViewState
         )
 
-        if (cameraViewState.canToggleLensFacing) {
-            Image(
+        if (cameraViewState.canSwitchCamera) {
+            SwitchCameraButton(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 32.dp, bottom = 92.dp)
-                    .clip(CircleShape)
-                    .size(64.dp)
-                    .clickable {
-                        cameraViewState.toggleLensFacing()
-                    },
-                painter = painterResource(id = R.drawable.ic_switch),
-                contentDescription = stringResource(id = R.string.switch_camera_button_alt)
+                    .padding(start = 32.dp, bottom = 92.dp),
+                onClick = cameraViewState::switchCamera
             )
         }
 
         if (cameraViewState.canTakePicture) {
-            Image(
+            CaptureButton(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 80.dp)
-                    .clip(CircleShape)
-                    .size(92.dp)
-                    .clickable {
-                        cameraViewState.takePicture()
-                    },
-                painter = painterResource(id = R.drawable.ic_shutter_normal),
-                contentDescription = stringResource(id = R.string.capture_button_alt)
+                    .padding(bottom = 80.dp),
+                onClick = cameraViewState::takePicture
             )
         }
 
-        SubcomposeAsyncImage(
+        GalleryButton(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(bottom = 92.dp, end = 32.dp)
-                .clip(CircleShape)
-                .border(4.dp, Color.White, CircleShape)
-                .size(64.dp)
-                .clickable {
-                },
-            model = photoFileController.lastSavedPhotoUri,
-            contentDescription = null
-        ) {
-            when (painter.state) {
-                AsyncImagePainter.State.Empty,
-                is AsyncImagePainter.State.Error -> {
-                    Image(
-                        modifier = Modifier.padding(16.dp),
-                        painter = painterResource(id = R.drawable.ic_photo),
-                        contentScale = ContentScale.Fit,
-                        contentDescription = null
-                    )
-                }
-                is AsyncImagePainter.State.Loading,
-                is AsyncImagePainter.State.Success -> {
-                    SubcomposeAsyncImageContent(
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+                .padding(bottom = 92.dp, end = 32.dp),
+            photoUri = photoFileController.lastSavedPhotoUri,
+            onClick = {}
+        )
+    }
+}
+
+@Composable
+private fun SwitchCameraButton(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Image(
+        modifier = modifier
+            .clip(CircleShape)
+            .size(64.dp)
+            .clickable(onClick = onClick),
+        painter = painterResource(id = R.drawable.ic_switch),
+        contentDescription = stringResource(id = R.string.switch_camera_button_alt)
+    )
+}
+
+@Composable
+private fun CaptureButton(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Image(
+        modifier = modifier
+            .clip(CircleShape)
+            .size(92.dp)
+            .clickable(onClick = onClick),
+        painter = painterResource(id = R.drawable.ic_shutter_normal),
+        contentDescription = stringResource(id = R.string.capture_button_alt)
+    )
+}
+
+@Composable
+private fun GalleryButton(
+    modifier: Modifier = Modifier,
+    photoUri: Uri?,
+    onClick: () -> Unit
+) {
+    SubcomposeAsyncImage(
+        modifier = modifier
+            .clip(CircleShape)
+            .border(4.dp, Color.White, CircleShape)
+            .size(64.dp)
+            .clickable(onClick = onClick),
+        model = photoUri,
+        contentDescription = stringResource(id = R.string.gallery_button_alt)
+    ) {
+        when (painter.state) {
+            AsyncImagePainter.State.Empty,
+            is AsyncImagePainter.State.Error -> {
+                Image(
+                    modifier = Modifier.padding(16.dp),
+                    painter = painterResource(id = R.drawable.ic_photo),
+                    contentScale = ContentScale.Fit,
+                    contentDescription = null
+                )
+            }
+            is AsyncImagePainter.State.Loading,
+            is AsyncImagePainter.State.Success -> {
+                SubcomposeAsyncImageContent(
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
             }
         }
     }
