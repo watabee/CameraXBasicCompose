@@ -16,11 +16,11 @@ import com.google.accompanist.permissions.shouldShowRationale
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun PermissionScreen() {
+fun PermissionScreen(openGalleryScreen: (rootDirectory: String) -> Unit) {
     val cameraPermissionState = rememberPermissionState(permission = Manifest.permission.CAMERA)
     when (cameraPermissionState.status) {
         PermissionStatus.Granted -> {
-            CameraScreen()
+            CameraScreen(openGalleryScreen = openGalleryScreen)
         }
         is PermissionStatus.Denied -> {
             Column {

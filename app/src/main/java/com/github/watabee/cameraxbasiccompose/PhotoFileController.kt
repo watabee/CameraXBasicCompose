@@ -34,7 +34,7 @@ fun rememberPhotoFileController(): PhotoFileController {
 class PhotoFileController(
     private val context: Context
 ) : RememberObserver {
-    private val outputDirectory: File
+    val outputDirectory: File
     private val simpleDateFormat = SimpleDateFormat(FILENAME, Locale.US)
 
     private var coroutineScope: CoroutineScope? = null

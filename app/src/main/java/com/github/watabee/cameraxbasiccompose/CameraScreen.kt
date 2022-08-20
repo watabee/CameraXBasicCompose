@@ -32,7 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun CameraScreen() {
+fun CameraScreen(openGalleryScreen: (rootDirectory: String) -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         val photoFileController = rememberPhotoFileController()
         val cameraViewState = rememberCameraViewState(photoFileController)
@@ -78,7 +78,11 @@ fun CameraScreen() {
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 92.dp, end = 32.dp),
             photoUri = photoFileController.lastSavedPhotoUri,
-            onClick = {}
+            onClick = if (photoFileController.lastSavedPhotoUri != null) {
+                {
+                    openGalleryScreen(photoFileController.outputDirectory.absolutePath)
+                }
+            } else null
         )
 
         // Flush animation.
@@ -125,14 +129,16 @@ private fun CaptureButton(
 private fun GalleryButton(
     modifier: Modifier = Modifier,
     photoUri: Uri?,
-    onClick: () -> Unit
+    onClick: (() -> Unit)? = null
 ) {
     SubcomposeAsyncImage(
         modifier = modifier
             .clip(CircleShape)
             .border(4.dp, Color.White, CircleShape)
             .size(64.dp)
-            .clickable(onClick = onClick),
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+            ),
         model = photoUri,
         contentDescription = stringResource(id = R.string.gallery_button_alt)
     ) {
