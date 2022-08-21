@@ -2,6 +2,7 @@ package com.github.watabee.cameraxbasiccompose
 
 import android.net.Uri
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material.MaterialTheme
@@ -16,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.github.watabee.cameraxbasiccompose.ui.AppTheme
+import com.github.watabee.cameraxbasiccompose.utils.VolumeDownKeyDownEventHelper
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -55,6 +57,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                VolumeDownKeyDownEventHelper.dispatchOnKeyDown()
+                true
+            }
+            else -> super.onKeyDown(keyCode, event)
         }
     }
 }

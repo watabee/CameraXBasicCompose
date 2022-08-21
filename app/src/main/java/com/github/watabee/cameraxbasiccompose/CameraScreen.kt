@@ -1,5 +1,8 @@
 package com.github.watabee.cameraxbasiccompose
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
+import com.github.watabee.cameraxbasiccompose.utils.KeyDownEventListener
+import com.github.watabee.cameraxbasiccompose.utils.VolumeDownKeyDownEventHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -39,6 +45,30 @@ fun CameraScreen(openGalleryScreen: (rootDirectory: String) -> Unit) {
         val coroutineScope = rememberCoroutineScope()
         // Flush animation.
         var alpha by remember { mutableStateOf(0f) }
+
+        fun takePicture() {
+            cameraViewState.takePicture()
+            // Flush animation.
+            coroutineScope.launch {
+                delay(100L)
+                alpha = 1f
+                delay(50L)
+            }.invokeOnCompletion {
+                alpha = 0f
+            }
+        }
+
+        DisposableEffect(Unit) {
+            val listener = KeyDownEventListener {
+                if (cameraViewState.canTakePicture) {
+                    takePicture()
+                }
+            }
+            VolumeDownKeyDownEventHelper.addListener(listener)
+            onDispose {
+                VolumeDownKeyDownEventHelper.removeListener(listener)
+            }
+        }
 
         CameraView(
             modifier = Modifier.fillMaxSize(),
@@ -59,17 +89,7 @@ fun CameraScreen(openGalleryScreen: (rootDirectory: String) -> Unit) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 80.dp),
-                onClick = {
-                    cameraViewState.takePicture()
-                    // Flush animation.
-                    coroutineScope.launch {
-                        delay(100L)
-                        alpha = 1f
-                        delay(50L)
-                    }.invokeOnCompletion {
-                        alpha = 0f
-                    }
-                }
+                onClick = ::takePicture
             )
         }
 
