@@ -8,6 +8,7 @@ import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraInfoUnavailableException
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
+import androidx.camera.core.ExperimentalZeroShutterLag
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
@@ -133,9 +134,11 @@ class CameraViewState(
             .setTargetRotation(rotation)
             .build()
 
+        @ExperimentalZeroShutterLag
         imageCapture = ImageCapture.Builder()
             .setTargetAspectRatio(screenAspectRatio)
             .setTargetRotation(rotation)
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_ZERO_SHUTTER_LAG)
             .build()
 
         val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
